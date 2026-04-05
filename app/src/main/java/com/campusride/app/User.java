@@ -7,6 +7,7 @@ public class User {
     private String phone;
     private double rating;
     private int totalRatings;
+    private String fcmToken;
 
     // Required empty constructor for Firestore
     public User() {}
@@ -38,4 +39,7 @@ public class User {
 
     public int getTotalRatings() { return totalRatings; }
     public void setTotalRatings(int totalRatings) { this.totalRatings = totalRatings; }
+    public String getFcmToken() { return fcmToken; }
+    public void setFcmToken(String fcmToken) { this.fcmToken = fcmToken; }
 }
+
