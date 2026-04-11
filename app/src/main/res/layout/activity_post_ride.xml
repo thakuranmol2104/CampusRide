@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="20dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <EditText
+            android:id="@+id/etOrigin"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="From (Origin)" />
+
+        <EditText
+            android:id="@+id/etDestination"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="To (Destination)"
+            android:layout_marginTop="10dp" />
+
+        <EditText
+            android:id="@+id/etDate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Date (DD/MM/YYYY)"
+            android:layout_marginTop="10dp" />
+
+        <EditText
+            android:id="@+id/etTime"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Time"
+            android:layout_marginTop="10dp" />
+
+        <EditText
+            android:id="@+id/etSeats"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Available Seats"
+            android:inputType="number"
+            android:layout_marginTop="10dp" />
+
+        <EditText
+            android:id="@+id/etPrice"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Price per seat"
+            android:inputType="numberDecimal"
+            android:layout_marginTop="10dp" />
+
+        <Button
+            android:id="@+id/btnPostRide"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Post Ride"
+            android:layout_marginTop="20dp" />
+
+    </LinearLayout>
+</ScrollView>
