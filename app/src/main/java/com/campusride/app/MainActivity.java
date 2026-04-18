@@ -14,6 +14,7 @@ public class MainActivity extends AppCompatActivity {
     private EditText etName, etPhone, etEmail, etPassword;
     private Button btnRegister, btnLogin;
     private FirebaseHelper firebaseHelper;
+    private SessionManager sessionManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -28,6 +29,14 @@ public class MainActivity extends AppCompatActivity {
         btnLogin = findViewById(R.id.btnLogin);
 
         firebaseHelper = FirebaseHelper.getInstance();
+        sessionManager = new SessionManager(this);
+
+        if (firebaseHelper.isLoggedIn() || sessionManager.hasActiveSession()) {
+            openHomeScreen();
+            return;
+        }
+
+        etEmail.setText(sessionManager.getSavedEmail());
 
         btnRegister.setOnClickListener(v -> registerUser());
         btnLogin.setOnClickListener(v -> loginUser());
@@ -71,12 +80,9 @@ public class MainActivity extends AppCompatActivity {
 
         firebaseHelper.registerUser(email, password, name, phone, task -> {
             if (task.isSuccessful()) {
+                sessionManager.saveLoginSession(email);
                 Toast.makeText(MainActivity.this, "Registration successful", Toast.LENGTH_SHORT).show();
-
-                // 👉 HOME SCREEN OPEN
-                startActivity(new Intent(MainActivity.this, HomeActivity.class));
-                finish();
-
+                openHomeScreen();
             } else {
                 String error = task.getException() != null ? task.getException().getMessage() : "Registration failed";
                 Toast.makeText(MainActivity.this, error, Toast.LENGTH_LONG).show();
@@ -102,16 +108,18 @@ public class MainActivity extends AppCompatActivity {
 
         firebaseHelper.loginUser(email, password, task -> {
             if (task.isSuccessful()) {
+                sessionManager.saveLoginSession(email);
                 Toast.makeText(MainActivity.this, "Login successful", Toast.LENGTH_SHORT).show();
-
-                // 👉 HOME SCREEN OPEN
-                startActivity(new Intent(MainActivity.this, HomeActivity.class));
-                finish();
-
+                openHomeScreen();
             } else {
                 String error = task.getException() != null ? task.getException().getMessage() : "Login failed";
                 Toast.makeText(MainActivity.this, error, Toast.LENGTH_LONG).show();
             }
         });
+    }
+
+    private void openHomeScreen() {
+        startActivity(new Intent(MainActivity.this, HomeActivity.class));
+        finish();
     }
 }

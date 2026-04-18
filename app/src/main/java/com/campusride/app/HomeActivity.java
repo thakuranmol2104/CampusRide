@@ -21,7 +21,7 @@ public class HomeActivity extends AppCompatActivity {
         btnLogout = findViewById(R.id.btnLogout);
 
         btnPostRide.setOnClickListener(v ->
-                startActivity(new Intent(HomeActivity.this, PostRideActivity.class))
+                startActivity(new Intent(HomeActivity.this, com.campusride.app.PostRideActivity.class))
         );
 
         btnSearchRides.setOnClickListener(v ->
@@ -34,6 +34,7 @@ public class HomeActivity extends AppCompatActivity {
 
         btnLogout.setOnClickListener(v -> {
             FirebaseHelper.getInstance().logoutUser();
+            new SessionManager(HomeActivity.this).clearSession();
             startActivity(new Intent(HomeActivity.this, MainActivity.class));
             finish();
         });
