@@ -1,19 +1,30 @@
 package com.campusride.app;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.firebase.auth.FirebaseUser;
+import com.google.android.libraries.places.widget.AutocompleteActivity;
 
 public class PostRideActivity extends AppCompatActivity {
 
+    private static final int FIELD_ORIGIN = 1;
+    private static final int FIELD_DESTINATION = 2;
+
     private EditText etOrigin, etDestination, etDate, etTime, etSeats, etPrice;
     private Button btnPostRide;
+    private ImageButton btnBack;
+    private int activeField = FIELD_ORIGIN;
+    private ActivityResultLauncher<Intent> placePickerLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -27,8 +38,66 @@ public class PostRideActivity extends AppCompatActivity {
         etSeats = findViewById(R.id.etSeats);
         etPrice = findViewById(R.id.etPrice);
         btnPostRide = findViewById(R.id.btnPostRide);
+        btnBack = findViewById(R.id.btnBack);
 
+        setupPlaceAutocomplete();
+        btnBack.setOnClickListener(v -> finish());
         btnPostRide.setOnClickListener(v -> postRide());
+    }
+
+    private void setupPlaceAutocomplete() {
+        placePickerLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == AutocompleteActivity.RESULT_ERROR) {
+                        launchFallbackAutocomplete();
+                        return;
+                    }
+
+                    if (result.getResultCode() != RESULT_OK || result.getData() == null) {
+                        return;
+                    }
+
+                    String placeName = PlacesAutoCompleteHelper.getSelectedPlaceName(result.getData());
+                    if (TextUtils.isEmpty(placeName)) {
+                        Toast.makeText(this, "Unable to fetch place", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
+                    if (activeField == FIELD_ORIGIN) {
+                        etOrigin.setText(placeName);
+                    } else if (activeField == FIELD_DESTINATION) {
+                        etDestination.setText(placeName);
+                    }
+                }
+        );
+
+        configurePlaceField(etOrigin);
+        configurePlaceField(etDestination);
+
+        etOrigin.setOnClickListener(v -> launchPlacePicker(FIELD_ORIGIN));
+        etDestination.setOnClickListener(v -> launchPlacePicker(FIELD_DESTINATION));
+    }
+
+    private void configurePlaceField(EditText editText) {
+        editText.setKeyListener(null);
+        editText.setFocusable(false);
+        editText.setFocusableInTouchMode(false);
+        editText.setCursorVisible(false);
+        editText.setClickable(true);
+    }
+
+    private void launchPlacePicker(int fieldType) {
+        try {
+            activeField = fieldType;
+            PlacesAutoCompleteHelper.launchAutocomplete(this, placePickerLauncher);
+        } catch (IllegalStateException exception) {
+            launchFallbackAutocomplete();
+        }
+    }
+
+    private void launchFallbackAutocomplete() {
+        PlacesAutoCompleteHelper.launchFallbackAutocomplete(this, placePickerLauncher);
     }
 
     private void postRide() {
