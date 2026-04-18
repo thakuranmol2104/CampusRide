@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -21,6 +22,7 @@ public class PostRideActivity extends AppCompatActivity {
 
     private EditText etOrigin, etDestination, etDate, etTime, etSeats, etPrice;
     private Button btnPostRide;
+    private ImageButton btnBack;
     private int activeField = FIELD_ORIGIN;
     private ActivityResultLauncher<Intent> placePickerLauncher;
 
@@ -36,8 +38,10 @@ public class PostRideActivity extends AppCompatActivity {
         etSeats = findViewById(R.id.etSeats);
         etPrice = findViewById(R.id.etPrice);
         btnPostRide = findViewById(R.id.btnPostRide);
+        btnBack = findViewById(R.id.btnBack);
 
         setupPlaceAutocomplete();
+        btnBack.setOnClickListener(v -> finish());
         btnPostRide.setOnClickListener(v -> postRide());
     }
 

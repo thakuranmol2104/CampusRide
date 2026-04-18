@@ -3,6 +3,7 @@ package com.campusride.app;
 import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Toast;
+import android.widget.ImageButton;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -22,6 +23,7 @@ public class MyRidesActivity extends AppCompatActivity {
     private RecyclerView recyclerMyRides;
     private RecyclerView recyclerBookingRequests;
     private RecyclerView recyclerPassengerBookings;
+    private ImageButton btnBack;
 
     private final List<Ride> myRideList = new ArrayList<>();
     private final List<DriverBookingRequestAdapter.DriverBookingRequestItem> bookingRequestItems = new ArrayList<>();
@@ -40,6 +42,7 @@ public class MyRidesActivity extends AppCompatActivity {
         recyclerMyRides = findViewById(R.id.recyclerMyRides);
         recyclerBookingRequests = findViewById(R.id.recyclerBookingRequests);
         recyclerPassengerBookings = findViewById(R.id.recyclerPassengerBookings);
+        btnBack = findViewById(R.id.btnBack);
 
         rideAdapter = new RideAdapter(myRideList, ride -> openRideMap(ride.getOrigin(), ride.getDestination()));
         driverBookingRequestAdapter = new DriverBookingRequestAdapter(new DriverBookingRequestAdapter.OnBookingActionListener() {
@@ -65,6 +68,7 @@ public class MyRidesActivity extends AppCompatActivity {
         recyclerMyRides.setAdapter(rideAdapter);
         recyclerBookingRequests.setAdapter(driverBookingRequestAdapter);
         recyclerPassengerBookings.setAdapter(passengerBookingAdapter);
+        btnBack.setOnClickListener(v -> finish());
 
         loadDashboard();
     }

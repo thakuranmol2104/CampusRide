@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -28,6 +29,7 @@ public class SearchRideActivity extends AppCompatActivity {
     private EditText etSearchOrigin;
     private EditText etSearchDestination;
     private Button btnSearchRide;
+    private ImageButton btnBack;
     private RecyclerView recyclerRides;
 
     private final List<Ride> rideList = new ArrayList<>();
@@ -43,6 +45,7 @@ public class SearchRideActivity extends AppCompatActivity {
         etSearchOrigin = findViewById(R.id.etSearchOrigin);
         etSearchDestination = findViewById(R.id.etSearchDestination);
         btnSearchRide = findViewById(R.id.btnSearchRide);
+        btnBack = findViewById(R.id.btnBack);
         recyclerRides = findViewById(R.id.recyclerRides);
 
         rideAdapter = new RideAdapter(
@@ -56,6 +59,7 @@ public class SearchRideActivity extends AppCompatActivity {
         recyclerRides.setAdapter(rideAdapter);
 
         setupPlaceAutocomplete();
+        btnBack.setOnClickListener(v -> finish());
         btnSearchRide.setOnClickListener(v -> searchRides());
     }
 

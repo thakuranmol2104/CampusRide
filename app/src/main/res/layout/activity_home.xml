@@ -2,7 +2,7 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5F7FB"
+    android:background="@color/screen_bg"
     android:fillViewport="true">
 
     <LinearLayout
@@ -11,28 +11,59 @@
         android:orientation="vertical"
         android:padding="20dp">
 
-        <TextView
-            android:id="@+id/tvWelcome"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="CampusRide"
-            android:textColor="#111827"
-            android:textSize="30sp"
-            android:textStyle="bold" />
+            android:background="@drawable/bg_primary_panel"
+            android:orientation="vertical"
+            android:padding="20dp">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Move around campus with cleaner ride sharing."
-            android:textColor="#6B7280"
-            android:textSize="15sp" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_chip_warning"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="6dp"
+                android:text="Ride dashboard"
+                android:textColor="@color/text_primary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvWelcome"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:maxLines="2"
+                android:text="CampusRide"
+                android:textColor="@android:color/white"
+                android:textSize="30sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Move around campus with cleaner ride sharing."
+                android:textColor="@android:color/white"
+                android:textSize="15sp" />
+
+            <Button
+                android:id="@+id/btnThemeToggle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_button_secondary"
+                android:text="Switch to Dark"
+                android:textColor="@color/white" />
+
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="22dp"
-            android:background="@drawable/bg_location_result"
+            android:background="@drawable/bg_surface_card"
             android:orientation="vertical"
             android:padding="18dp">
 
@@ -40,7 +71,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Post a Ride"
-                android:textColor="#111827"
+                android:textColor="@color/text_primary"
                 android:textSize="20sp"
                 android:textStyle="bold" />
 
@@ -49,7 +80,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:text="Offer a route to students heading the same way."
-                android:textColor="#6B7280"
+                android:textColor="@color/text_secondary"
                 android:textSize="14sp" />
 
             <Button
@@ -66,7 +97,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
-            android:background="@drawable/bg_location_result"
+            android:background="@drawable/bg_surface_card"
             android:orientation="vertical"
             android:padding="18dp">
 
@@ -74,7 +105,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Search Rides"
-                android:textColor="#111827"
+                android:textColor="@color/text_primary"
                 android:textSize="20sp"
                 android:textStyle="bold" />
 
@@ -83,7 +114,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:text="Find active rides and request your seat."
-                android:textColor="#6B7280"
+                android:textColor="@color/text_secondary"
                 android:textSize="14sp" />
 
             <Button
@@ -100,7 +131,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
-            android:background="@drawable/bg_location_result"
+            android:background="@drawable/bg_surface_card"
             android:orientation="vertical"
             android:padding="18dp">
 
@@ -108,7 +139,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="My Activity"
-                android:textColor="#111827"
+                android:textColor="@color/text_primary"
                 android:textSize="20sp"
                 android:textStyle="bold" />
 
@@ -117,7 +148,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:text="Track posted rides, passenger requests, and bookings."
-                android:textColor="#6B7280"
+                android:textColor="@color/text_secondary"
                 android:textSize="14sp" />
 
             <Button
@@ -137,7 +168,7 @@
             android:layout_marginTop="18dp"
             android:background="@drawable/bg_button_secondary"
             android:text="Logout"
-            android:textColor="#1D4ED8" />
+            android:textColor="@color/white" />
 
     </LinearLayout>
 
