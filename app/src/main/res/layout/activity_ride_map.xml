@@ -4,14 +4,8 @@
     android:layout_height="match_parent"
     android:background="@color/screen_bg">
 
-    <fragment
-        android:id="@+id/rideMapFragment"
-        android:name="com.google.android.gms.maps.SupportMapFragment"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" />
-
-    <WebView
-        android:id="@+id/webRideMap"
+    <org.maplibre.android.maps.MapView
+        android:id="@+id/rideMapView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:visibility="visible" />

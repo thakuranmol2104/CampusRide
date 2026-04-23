@@ -7,6 +7,8 @@ import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.google.firebase.auth.FirebaseUser;
+
 public class HomeActivity extends AppCompatActivity {
 
     private Button btnPostRide, btnSearchRides, btnMyRides, btnLogout;
@@ -28,10 +30,7 @@ public class HomeActivity extends AppCompatActivity {
         btnLogout = findViewById(R.id.btnLogout);
         btnThemeToggle = findViewById(R.id.btnThemeToggle);
 
-        if (FirebaseHelper.getInstance().getCurrentUser() != null
-                && FirebaseHelper.getInstance().getCurrentUser().getEmail() != null) {
-            tvWelcome.setText("Welcome back, " + FirebaseHelper.getInstance().getCurrentUser().getEmail());
-        }
+        loadDisplayName();
         updateThemeToggleText();
 
         btnPostRide.setOnClickListener(v ->
@@ -61,5 +60,32 @@ public class HomeActivity extends AppCompatActivity {
 
     private void updateThemeToggleText() {
         btnThemeToggle.setText(themeManager.isDarkMode() ? "Switch to Light" : "Switch to Dark");
+    }
+
+    private void loadDisplayName() {
+        FirebaseUser currentUser = FirebaseHelper.getInstance().getCurrentUser();
+        if (currentUser == null) {
+            return;
+        }
+
+        FirebaseHelper.getInstance().getDb()
+                .collection("users")
+                .document(currentUser.getUid())
+                .get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    String fallback = currentUser.getEmail() != null ? currentUser.getEmail() : "Rider";
+                    if (documentSnapshot.exists()) {
+                        User user = documentSnapshot.toObject(User.class);
+                        if (user != null && user.getName() != null && !user.getName().trim().isEmpty()) {
+                            tvWelcome.setText("Welcome back, " + user.getName());
+                            return;
+                        }
+                    }
+                    tvWelcome.setText("Welcome back, " + fallback);
+                })
+                .addOnFailureListener(exception -> {
+                    String fallback = currentUser.getEmail() != null ? currentUser.getEmail() : "Rider";
+                    tvWelcome.setText("Welcome back, " + fallback);
+                });
     }
 }

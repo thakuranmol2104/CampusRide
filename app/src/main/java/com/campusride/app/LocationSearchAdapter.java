@@ -69,11 +69,23 @@ public class LocationSearchAdapter extends RecyclerView.Adapter<LocationSearchAd
         private final String title;
         private final String subtitle;
         private final LatLng latLng;
+        private final String placeId;
+        private final Integer distanceMeters;
 
         public LocationResult(String title, String subtitle, LatLng latLng) {
+            this(title, subtitle, latLng, null, null);
+        }
+
+        public LocationResult(String title,
+                              String subtitle,
+                              LatLng latLng,
+                              String placeId,
+                              Integer distanceMeters) {
             this.title = title;
             this.subtitle = subtitle;
             this.latLng = latLng;
+            this.placeId = placeId;
+            this.distanceMeters = distanceMeters;
         }
 
         public String getTitle() {
@@ -86,6 +98,14 @@ public class LocationSearchAdapter extends RecyclerView.Adapter<LocationSearchAd
 
         public LatLng getLatLng() {
             return latLng;
+        }
+
+        public String getPlaceId() {
+            return placeId;
+        }
+
+        public Integer getDistanceMeters() {
+            return distanceMeters;
         }
     }
 }

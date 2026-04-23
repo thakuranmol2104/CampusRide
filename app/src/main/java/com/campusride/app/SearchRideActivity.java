@@ -20,6 +20,7 @@ import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public class SearchRideActivity extends AppCompatActivity {
 
@@ -33,6 +34,7 @@ public class SearchRideActivity extends AppCompatActivity {
     private RecyclerView recyclerRides;
 
     private final List<Ride> rideList = new ArrayList<>();
+    private final List<Ride> allRideList = new ArrayList<>();
     private RideAdapter rideAdapter;
     private int activeField = FIELD_ORIGIN;
     private ActivityResultLauncher<Intent> placePickerLauncher;
@@ -60,7 +62,8 @@ public class SearchRideActivity extends AppCompatActivity {
 
         setupPlaceAutocomplete();
         btnBack.setOnClickListener(v -> finish());
-        btnSearchRide.setOnClickListener(v -> searchRides());
+        btnSearchRide.setOnClickListener(v -> filterRides());
+        loadAvailableRides();
     }
 
     private void setupPlaceAutocomplete() {
@@ -125,36 +128,58 @@ public class SearchRideActivity extends AppCompatActivity {
         startActivity(intent);
     }
 
-    private void searchRides() {
+    private void filterRides() {
         String origin = etSearchOrigin.getText().toString().trim();
         String destination = etSearchDestination.getText().toString().trim();
 
-        if (TextUtils.isEmpty(origin)) {
-            etSearchOrigin.setError("Select pickup location");
-            return;
+        rideList.clear();
+
+        if (TextUtils.isEmpty(origin) && TextUtils.isEmpty(destination)) {
+            rideList.addAll(allRideList);
+        } else {
+            for (Ride ride : allRideList) {
+                boolean originMatches = TextUtils.isEmpty(origin)
+                        || containsIgnoreCase(ride.getOrigin(), origin);
+                boolean destinationMatches = TextUtils.isEmpty(destination)
+                        || containsIgnoreCase(ride.getDestination(), destination);
+
+                if (originMatches && destinationMatches) {
+                    rideList.add(ride);
+                }
+            }
         }
 
-        if (TextUtils.isEmpty(destination)) {
-            etSearchDestination.setError("Select drop location");
-            return;
-        }
+        rideAdapter.notifyDataSetChanged();
 
-        RideHelper.getInstance().searchRides(origin, destination, task -> {
+        if (rideList.isEmpty()) {
+            Toast.makeText(this, "No rides found for this route", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private boolean containsIgnoreCase(String value, String query) {
+        return value != null && value.toLowerCase(Locale.getDefault())
+                .contains(query.toLowerCase(Locale.getDefault()));
+    }
+
+    private void loadAvailableRides() {
+        RideHelper.getInstance().getActiveRides(task -> {
             if (task.isSuccessful()) {
+                allRideList.clear();
                 rideList.clear();
 
                 for (QueryDocumentSnapshot document : task.getResult()) {
                     Ride ride = document.toObject(Ride.class);
+                    allRideList.add(ride);
                     rideList.add(ride);
                 }
 
                 rideAdapter.notifyDataSetChanged();
 
                 if (rideList.isEmpty()) {
-                    Toast.makeText(this, "No rides found", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "No active rides available right now", Toast.LENGTH_SHORT).show();
                 }
             } else {
-                String error = task.getException() != null ? task.getException().getMessage() : "Search failed";
+                String error = task.getException() != null ? task.getException().getMessage() : "Unable to load rides";
                 Toast.makeText(this, error, Toast.LENGTH_LONG).show();
             }
         });

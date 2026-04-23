@@ -33,6 +33,13 @@
 
     </LinearLayout>
 
+    <org.maplibre.android.maps.MapView
+        android:id="@+id/locationSearchMapView"
+        android:layout_width="match_parent"
+        android:layout_height="220dp"
+        android:layout_marginTop="14dp"
+        android:background="@drawable/bg_surface_card" />
+
     <EditText
         android:id="@+id/etLocationSearch"
         android:layout_width="match_parent"

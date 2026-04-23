@@ -2,77 +2,64 @@ package com.campusride.app;
 
 import android.location.Address;
 import android.location.Geocoder;
-import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.text.TextUtils;
-import android.util.TypedValue;
-import android.widget.Toast;
-import android.widget.TextView;
 import android.widget.ImageButton;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
+import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.FragmentActivity;
 
-import com.google.android.gms.maps.CameraUpdateFactory;
-import com.google.android.gms.maps.GoogleMap;
-import com.google.android.gms.maps.MapsInitializer;
-import com.google.android.gms.maps.OnMapReadyCallback;
-import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.BitmapDescriptorFactory;
-import com.google.android.gms.maps.model.LatLng;
-import com.google.android.gms.maps.model.LatLngBounds;
-import com.google.android.gms.maps.model.MarkerOptions;
-import com.google.android.gms.maps.model.PolylineOptions;
+import org.maplibre.android.MapLibre;
+import org.maplibre.android.annotations.MarkerOptions;
+import org.maplibre.android.annotations.PolylineOptions;
+import org.maplibre.android.camera.CameraPosition;
+import org.maplibre.android.camera.CameraUpdateFactory;
+import org.maplibre.android.geometry.LatLng;
+import org.maplibre.android.geometry.LatLngBounds;
+import org.maplibre.android.maps.MapLibreMap;
+import org.maplibre.android.maps.MapView;
+import org.maplibre.android.maps.OnMapReadyCallback;
 
 import java.io.IOException;
-import java.net.URLEncoder;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.nio.charset.StandardCharsets;
 
 public class RideMapActivity extends FragmentActivity implements OnMapReadyCallback {
 
     public static final String EXTRA_ORIGIN = "origin";
     public static final String EXTRA_DESTINATION = "destination";
-    private static final LatLng DEFAULT_MAP_CENTER = new LatLng(20.5937, 78.9629);
-    private static final long MAP_FALLBACK_DELAY_MS = 3500L;
+    private static final LatLng INDIA_DEFAULT = new LatLng(20.5937, 78.9629);
 
-    private GoogleMap googleMap;
+    private MapView mapView;
+    private MapLibreMap mapLibreMap;
     private Geocoder geocoder;
     private ExecutorService executorService;
-    private WebView webRideMap;
+
     private TextView tvMapOrigin;
     private TextView tvMapDestination;
     private ImageButton btnBack;
-    private Handler handler;
-    private boolean mapLoaded;
-    private boolean fallbackShown;
-    private Runnable mapFallbackRunnable;
 
     private String originName;
     private String destinationName;
-    private LatLng originLatLng;
-    private LatLng destinationLatLng;
-    private boolean originResolved;
-    private boolean destinationResolved;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        MapLibre.getInstance(this);
         setContentView(R.layout.activity_ride_map);
 
-        webRideMap = findViewById(R.id.webRideMap);
+        mapView = findViewById(R.id.rideMapView);
         tvMapOrigin = findViewById(R.id.tvMapOrigin);
         tvMapDestination = findViewById(R.id.tvMapDestination);
         btnBack = findViewById(R.id.btnBack);
-        handler = new Handler(Looper.getMainLooper());
+
+        mapView.onCreate(savedInstanceState);
+        mapView.getMapAsync(this);
 
         originName = getIntent() != null ? getIntent().getStringExtra(EXTRA_ORIGIN) : null;
         destinationName = getIntent() != null ? getIntent().getStringExtra(EXTRA_DESTINATION) : null;
@@ -86,248 +73,152 @@ public class RideMapActivity extends FragmentActivity implements OnMapReadyCallb
         tvMapOrigin.setText(originName);
         tvMapDestination.setText(destinationName);
         btnBack.setOnClickListener(v -> finish());
-        prepareWebMap();
 
         geocoder = new Geocoder(this, Locale.getDefault());
         executorService = Executors.newSingleThreadExecutor();
-
-        SupportMapFragment mapFragment =
-                (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.rideMapFragment);
-
-        if (mapFragment == null) {
-            showWebFallback();
-            return;
-        }
-
-        mapFragment.getMapAsync(this);
     }
 
     @Override
-    public void onMapReady(@NonNull GoogleMap map) {
-        googleMap = map;
-        MapsInitializer.initialize(getApplicationContext());
-        googleMap.getUiSettings().setZoomControlsEnabled(true);
-        googleMap.getUiSettings().setCompassEnabled(true);
-        googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(DEFAULT_MAP_CENTER, 4.5f));
-        googleMap.setOnMapLoadedCallback(() -> {
-            mapLoaded = true;
-            if (mapFallbackRunnable != null) {
-                handler.removeCallbacks(mapFallbackRunnable);
-            }
-        });
-        scheduleMapFallback();
-        resolveLocations();
+    public void onMapReady(@NonNull MapLibreMap map) {
+        mapLibreMap = map;
+        NavigationMapHelper.applyNavigationUi(mapLibreMap);
+        mapLibreMap.moveCamera(CameraUpdateFactory.newLatLngZoom(INDIA_DEFAULT, 4.5));
+        loadRoute();
     }
 
-    private void scheduleMapFallback() {
-        mapFallbackRunnable = () -> {
-            if (!mapLoaded) {
-                showWebFallback();
-            }
-        };
-        handler.postDelayed(mapFallbackRunnable, MAP_FALLBACK_DELAY_MS);
-    }
-
-    private void resolveLocations() {
-        if (geocoder == null || !Geocoder.isPresent()) {
-            showGeocodeError("Geocoder is unavailable on this device.");
+    private void loadRoute() {
+        if (!Geocoder.isPresent()) {
+            Toast.makeText(this, "Map search is unavailable on this device.", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        geocodeAddress(originName, new GeocodeCallback() {
-            @Override
-            public void onResult(@Nullable LatLng latLng) {
-                originResolved = true;
-                originLatLng = latLng;
-                renderMapIfReady();
-            }
-        });
-
-        geocodeAddress(destinationName, new GeocodeCallback() {
-            @Override
-            public void onResult(@Nullable LatLng latLng) {
-                destinationResolved = true;
-                destinationLatLng = latLng;
-                renderMapIfReady();
-            }
+        executorService.execute(() -> {
+            LatLng originLatLng = geocode(originName);
+            LatLng destinationLatLng = geocode(destinationName);
+            runOnUiThread(() -> renderRoute(originLatLng, destinationLatLng));
         });
     }
 
-    private void geocodeAddress(@Nullable String locationName, @NonNull GeocodeCallback callback) {
-        if (TextUtils.isEmpty(locationName)) {
-            callback.onResult(null);
+    private void renderRoute(@Nullable LatLng originLatLng, @Nullable LatLng destinationLatLng) {
+        if (mapLibreMap == null) {
             return;
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            geocoder.getFromLocationName(locationName, 1, new Geocoder.GeocodeListener() {
-                @Override
-                public void onGeocode(@NonNull List<Address> addresses) {
-                    callback.onResult(getLatLngFromAddressList(addresses));
-                }
-
-                @Override
-                public void onError(@Nullable String errorMessage) {
-                    showGeocodeError(errorMessage);
-                    callback.onResult(null);
-                }
-            });
+        if (originLatLng == null || destinationLatLng == null) {
+            Toast.makeText(this, "Unable to load route locations.", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        executorService.execute(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    callback.onResult(getLatLngWithLegacyGeocoder(locationName));
-                } catch (IOException exception) {
-                    showGeocodeError(exception.getMessage());
-                    callback.onResult(null);
-                }
-            }
-        });
-    }
+        mapLibreMap.clear();
+        mapLibreMap.addMarker(new MarkerOptions()
+                .position(originLatLng)
+                .title(originName)
+                .snippet("Pickup"));
+        mapLibreMap.addMarker(new MarkerOptions()
+                .position(destinationLatLng)
+                .title(destinationName)
+                .snippet("Drop"));
+        mapLibreMap.addPolyline(new PolylineOptions()
+                .add(originLatLng)
+                .add(destinationLatLng)
+                .color(0xFF0F8B6D)
+                .width(7f)
+                .alpha(0.9f));
 
-    @SuppressWarnings("deprecation")
-    @Nullable
-    private LatLng getLatLngWithLegacyGeocoder(@NonNull String locationName) throws IOException {
-        List<Address> addresses = geocoder.getFromLocationName(locationName, 1);
-        return getLatLngFromAddressList(addresses);
-    }
+        double bearing = NavigationMapHelper.calculateBearing(
+                originLatLng.getLatitude(),
+                originLatLng.getLongitude(),
+                destinationLatLng.getLatitude(),
+                destinationLatLng.getLongitude()
+        );
 
-    @Nullable
-    private LatLng getLatLngFromAddressList(@Nullable List<Address> addresses) {
-        if (addresses == null || addresses.isEmpty()) {
-            return null;
-        }
-
-        Address address = addresses.get(0);
-        return new LatLng(address.getLatitude(), address.getLongitude());
-    }
-
-    private void renderMapIfReady() {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                if (googleMap == null || !originResolved || !destinationResolved) {
-                    return;
-                }
-
-                if (originLatLng == null || destinationLatLng == null) {
-                    Toast.makeText(RideMapActivity.this,
-                            "Unable to locate one or both places.",
-                            Toast.LENGTH_SHORT).show();
-                    showWebFallback();
-                    return;
-                }
-
-                googleMap.clear();
-                googleMap.addMarker(new MarkerOptions()
-                        .position(originLatLng)
-                        .title(originName)
-                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)));
-
-                googleMap.addMarker(new MarkerOptions()
-                        .position(destinationLatLng)
-                        .title(destinationName)
-                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)));
-
-                googleMap.addPolyline(new PolylineOptions()
-                        .add(originLatLng, destinationLatLng)
-                        .width(8f)
-                        .geodesic(true));
-
-                moveCameraToBounds(originLatLng, destinationLatLng);
-                if (webRideMap != null) {
-                    webRideMap.setVisibility(WebView.GONE);
-                }
-            }
-        });
-    }
-
-    private void moveCameraToBounds(@NonNull LatLng origin, @NonNull LatLng destination) {
-        if (origin.latitude == destination.latitude && origin.longitude == destination.longitude) {
-            googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(origin, 14f));
+        if (samePoint(originLatLng, destinationLatLng)) {
+            mapLibreMap.animateCamera(CameraUpdateFactory.newCameraPosition(
+                    NavigationMapHelper.navigationCamera()
+                            .target(originLatLng)
+                            .bearing(bearing)
+                            .build()
+            ));
             return;
         }
 
         LatLngBounds bounds = new LatLngBounds.Builder()
-                .include(origin)
-                .include(destination)
+                .include(originLatLng)
+                .include(destinationLatLng)
                 .build();
 
-        int padding = (int) TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                96,
-                getResources().getDisplayMetrics()
-        );
-        googleMap.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, padding));
+        mapLibreMap.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 96));
+        mapLibreMap.animateCamera(CameraUpdateFactory.newCameraPosition(
+                new CameraPosition.Builder(mapLibreMap.getCameraPosition())
+                        .bearing(bearing)
+                        .tilt(40.0)
+                        .build()
+        ));
     }
 
-    private void showGeocodeError(@Nullable String message) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                String errorMessage = TextUtils.isEmpty(message)
-                        ? "Failed to fetch location details."
-                        : message;
-                Toast.makeText(RideMapActivity.this, errorMessage, Toast.LENGTH_SHORT).show();
+    @SuppressWarnings("deprecation")
+    @Nullable
+    private LatLng geocode(@NonNull String query) {
+        try {
+            List<Address> addresses = geocoder.getFromLocationName(query, 1);
+            if (addresses == null || addresses.isEmpty()) {
+                return null;
             }
-        });
+
+            Address address = addresses.get(0);
+            return new LatLng(address.getLatitude(), address.getLongitude());
+        } catch (IOException exception) {
+            return null;
+        }
     }
 
-    private void showWebFallback() {
-        if (fallbackShown || webRideMap == null) {
-            return;
-        }
-
-        fallbackShown = true;
-        if (mapFallbackRunnable != null) {
-            handler.removeCallbacks(mapFallbackRunnable);
-        }
-
-        webRideMap.setVisibility(WebView.VISIBLE);
-        webRideMap.loadUrl(buildDirectionsUrl());
+    private boolean samePoint(@NonNull LatLng first, @NonNull LatLng second) {
+        return Math.abs(first.getLatitude() - second.getLatitude()) < 0.00001
+                && Math.abs(first.getLongitude() - second.getLongitude()) < 0.00001;
     }
 
-    private void prepareWebMap() {
-        if (webRideMap == null) {
-            return;
-        }
-
-        WebSettings settings = webRideMap.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        webRideMap.setVisibility(WebView.VISIBLE);
-        webRideMap.loadUrl(buildDirectionsUrl());
+    @Override
+    protected void onStart() {
+        super.onStart();
+        mapView.onStart();
     }
 
-    @NonNull
-    private String buildDirectionsUrl() {
-        String encodedOrigin = URLEncoder.encode(originName, StandardCharsets.UTF_8);
-        String encodedDestination = URLEncoder.encode(destinationName, StandardCharsets.UTF_8);
-        return "https://www.google.com/maps/dir/?api=1&origin="
-                + encodedOrigin
-                + "&destination="
-                + encodedDestination
-                + "&travelmode=driving";
+    @Override
+    protected void onResume() {
+        super.onResume();
+        mapView.onResume();
+    }
+
+    @Override
+    protected void onPause() {
+        mapView.onPause();
+        super.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        mapView.onStop();
+        super.onStop();
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        mapView.onSaveInstanceState(outState);
+    }
+
+    @Override
+    public void onLowMemory() {
+        super.onLowMemory();
+        mapView.onLowMemory();
     }
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
-        if (handler != null && mapFallbackRunnable != null) {
-            handler.removeCallbacks(mapFallbackRunnable);
-        }
-        if (webRideMap != null) {
-            webRideMap.destroy();
-        }
         if (executorService != null) {
             executorService.shutdownNow();
         }
-    }
-
-    private interface GeocodeCallback {
-        void onResult(@Nullable LatLng latLng);
+        mapView.onDestroy();
+        super.onDestroy();
     }
 }

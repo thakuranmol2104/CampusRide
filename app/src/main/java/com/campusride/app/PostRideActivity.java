@@ -1,6 +1,8 @@
 package com.campusride.app;
 
 import android.content.Intent;
+import android.app.DatePickerDialog;
+import android.app.TimePickerDialog;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.widget.Button;
@@ -15,6 +17,10 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.android.libraries.places.widget.AutocompleteActivity;
 
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Locale;
+
 public class PostRideActivity extends AppCompatActivity {
 
     private static final int FIELD_ORIGIN = 1;
@@ -25,6 +31,7 @@ public class PostRideActivity extends AppCompatActivity {
     private ImageButton btnBack;
     private int activeField = FIELD_ORIGIN;
     private ActivityResultLauncher<Intent> placePickerLauncher;
+    private final Calendar selectedCalendar = Calendar.getInstance();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -41,6 +48,7 @@ public class PostRideActivity extends AppCompatActivity {
         btnBack = findViewById(R.id.btnBack);
 
         setupPlaceAutocomplete();
+        setupDateAndTimePickers();
         btnBack.setOnClickListener(v -> finish());
         btnPostRide.setOnClickListener(v -> postRide());
     }
@@ -85,6 +93,55 @@ public class PostRideActivity extends AppCompatActivity {
         editText.setFocusableInTouchMode(false);
         editText.setCursorVisible(false);
         editText.setClickable(true);
+    }
+
+    private void setupDateAndTimePickers() {
+        configurePickerField(etDate);
+        configurePickerField(etTime);
+
+        etDate.setOnClickListener(v -> showDatePicker());
+        etTime.setOnClickListener(v -> showTimePicker());
+    }
+
+    private void configurePickerField(EditText editText) {
+        editText.setKeyListener(null);
+        editText.setFocusable(false);
+        editText.setFocusableInTouchMode(false);
+        editText.setCursorVisible(false);
+        editText.setClickable(true);
+    }
+
+    private void showDatePicker() {
+        DatePickerDialog datePickerDialog = new DatePickerDialog(
+                this,
+                (view, year, month, dayOfMonth) -> {
+                    selectedCalendar.set(Calendar.YEAR, year);
+                    selectedCalendar.set(Calendar.MONTH, month);
+                    selectedCalendar.set(Calendar.DAY_OF_MONTH, dayOfMonth);
+                    etDate.setText(new SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+                            .format(selectedCalendar.getTime()));
+                },
+                selectedCalendar.get(Calendar.YEAR),
+                selectedCalendar.get(Calendar.MONTH),
+                selectedCalendar.get(Calendar.DAY_OF_MONTH)
+        );
+        datePickerDialog.show();
+    }
+
+    private void showTimePicker() {
+        TimePickerDialog timePickerDialog = new TimePickerDialog(
+                this,
+                (view, hourOfDay, minute) -> {
+                    selectedCalendar.set(Calendar.HOUR_OF_DAY, hourOfDay);
+                    selectedCalendar.set(Calendar.MINUTE, minute);
+                    etTime.setText(new SimpleDateFormat("hh:mm a", Locale.getDefault())
+                            .format(selectedCalendar.getTime()));
+                },
+                selectedCalendar.get(Calendar.HOUR_OF_DAY),
+                selectedCalendar.get(Calendar.MINUTE),
+                false
+        );
+        timePickerDialog.show();
     }
 
     private void launchPlacePicker(int fieldType) {
