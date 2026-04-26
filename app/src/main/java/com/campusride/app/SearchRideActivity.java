@@ -71,7 +71,12 @@ public class SearchRideActivity extends AppCompatActivity {
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
                     if (result.getResultCode() == AutocompleteActivity.RESULT_ERROR) {
-                        launchFallbackAutocomplete();
+                        String errorMessage = PlacesAutoCompleteHelper.getPlacesErrorMessage(result.getData());
+                        Toast.makeText(
+                                this,
+                                TextUtils.isEmpty(errorMessage) ? "Unable to search place" : errorMessage,
+                                Toast.LENGTH_SHORT
+                        ).show();
                         return;
                     }
 
@@ -109,16 +114,8 @@ public class SearchRideActivity extends AppCompatActivity {
     }
 
     private void launchPlacePicker(int fieldType) {
-        try {
-            activeField = fieldType;
-            PlacesAutoCompleteHelper.launchAutocomplete(this, placePickerLauncher);
-        } catch (IllegalStateException exception) {
-            launchFallbackAutocomplete();
-        }
-    }
-
-    private void launchFallbackAutocomplete() {
-        PlacesAutoCompleteHelper.launchFallbackAutocomplete(this, placePickerLauncher);
+        activeField = fieldType;
+        PlacesAutoCompleteHelper.launchAutocomplete(this, placePickerLauncher);
     }
 
     private void openRideMap(String origin, String destination) {
@@ -173,16 +170,32 @@ public class SearchRideActivity extends AppCompatActivity {
                     rideList.add(ride);
                 }
 
+                addLocalActiveRides();
                 rideAdapter.notifyDataSetChanged();
 
                 if (rideList.isEmpty()) {
                     Toast.makeText(this, "No active rides available right now", Toast.LENGTH_SHORT).show();
                 }
             } else {
-                String error = task.getException() != null ? task.getException().getMessage() : "Unable to load rides";
-                Toast.makeText(this, error, Toast.LENGTH_LONG).show();
+                allRideList.clear();
+                rideList.clear();
+                addLocalActiveRides();
+                rideAdapter.notifyDataSetChanged();
+                if (rideList.isEmpty()) {
+                    String error = task.getException() != null ? task.getException().getMessage() : "Unable to load rides";
+                    Toast.makeText(this, error, Toast.LENGTH_LONG).show();
+                } else {
+                    Toast.makeText(this, "Showing rides saved on this device.", Toast.LENGTH_SHORT).show();
+                }
             }
         });
+    }
+
+    private void addLocalActiveRides() {
+        for (Ride ride : LocalRideStore.getActiveRides(this)) {
+            allRideList.add(ride);
+            rideList.add(ride);
+        }
     }
 
     private void requestBooking(Ride ride) {
@@ -218,25 +231,41 @@ public class SearchRideActivity extends AppCompatActivity {
                         return;
                     }
 
-                    Booking booking = new Booking(
-                            "",
-                            ride.getRideId(),
-                            currentUser.getUid(),
-                            currentUser.getEmail() != null ? currentUser.getEmail() : "Passenger",
-                            ride.getDriverUid(),
-                            1
-                    );
+                    FirebaseHelper.getInstance().getDb()
+                            .collection("users")
+                            .document(currentUser.getUid())
+                            .get()
+                            .addOnSuccessListener(documentSnapshot -> {
+                                String passengerName = "Passenger";
+                                if (documentSnapshot.exists()) {
+                                    User user = documentSnapshot.toObject(User.class);
+                                    if (user != null && user.getName() != null && !user.getName().trim().isEmpty()) {
+                                        passengerName = user.getName().trim();
+                                    }
+                                }
 
-                    BookingHelper.getInstance().requestBooking(booking, bookingTask -> {
-                        if (bookingTask.isSuccessful()) {
-                            Toast.makeText(this, "Seat request sent to driver", Toast.LENGTH_SHORT).show();
-                        } else {
-                            String error = bookingTask.getException() != null
-                                    ? bookingTask.getException().getMessage()
-                                    : "Booking request failed";
-                            Toast.makeText(this, error, Toast.LENGTH_LONG).show();
-                        }
-                    });
+                                Booking booking = new Booking(
+                                        "",
+                                        ride.getRideId(),
+                                        currentUser.getUid(),
+                                        passengerName,
+                                        ride.getDriverUid(),
+                                        1
+                                );
+
+                                BookingHelper.getInstance().requestBooking(booking, bookingTask -> {
+                                    if (bookingTask.isSuccessful()) {
+                                        Toast.makeText(this, "Seat request sent to driver", Toast.LENGTH_SHORT).show();
+                                    } else {
+                                        String error = bookingTask.getException() != null
+                                                ? bookingTask.getException().getMessage()
+                                                : "Booking request failed";
+                                        Toast.makeText(this, error, Toast.LENGTH_LONG).show();
+                                    }
+                                });
+                            })
+                            .addOnFailureListener(exception ->
+                                    Toast.makeText(this, "Unable to load your profile name", Toast.LENGTH_SHORT).show());
                 });
     }
 }

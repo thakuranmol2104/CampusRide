@@ -88,10 +88,11 @@ public class MyRidesActivity extends AppCompatActivity {
     private void loadMyPostedRides(String driverUid) {
         RideHelper.getInstance().getRidesByDriver(driverUid, task -> {
             if (!task.isSuccessful()) {
-                String error = task.getException() != null
-                        ? task.getException().getMessage()
-                        : "Failed to load rides";
-                Toast.makeText(this, error, Toast.LENGTH_LONG).show();
+                myRideList.clear();
+                rideById.clear();
+                addLocalDriverRides(driverUid);
+                rideAdapter.notifyDataSetChanged();
+                loadPendingRequests();
                 return;
             }
 
@@ -104,9 +105,17 @@ public class MyRidesActivity extends AppCompatActivity {
                 rideById.put(ride.getRideId(), ride);
             }
 
+            addLocalDriverRides(driverUid);
             rideAdapter.notifyDataSetChanged();
             loadPendingRequests();
         });
+    }
+
+    private void addLocalDriverRides(String driverUid) {
+        for (Ride ride : LocalRideStore.getRidesByDriver(this, driverUid)) {
+            myRideList.add(ride);
+            rideById.put(ride.getRideId(), ride);
+        }
     }
 
     private void loadPendingRequests() {

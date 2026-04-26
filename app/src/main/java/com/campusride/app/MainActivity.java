@@ -51,7 +51,7 @@ public class MainActivity extends AppCompatActivity {
         firebaseHelper = FirebaseHelper.getInstance();
         sessionManager = new SessionManager(this);
 
-        if (firebaseHelper.isLoggedIn() || sessionManager.hasActiveSession()) {
+        if (firebaseHelper.isLoggedIn()) {
             openHomeScreen();
             return;
         }

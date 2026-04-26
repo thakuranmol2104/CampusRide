@@ -123,7 +123,7 @@ public final class PlacesAutoCompleteHelper {
     }
 
     @NonNull
-    private static String getApiKey(@NonNull Context context) {
+    public static String requireApiKey(@NonNull Context context) {
         String generatedApiKey = context.getString(R.string.google_api_key);
         if (isValidApiKey(generatedApiKey)) {
             return generatedApiKey;
@@ -146,6 +146,11 @@ public final class PlacesAutoCompleteHelper {
         } catch (PackageManager.NameNotFoundException exception) {
             throw new IllegalStateException("Unable to read Google Maps API key.", exception);
         }
+    }
+
+    @NonNull
+    private static String getApiKey(@NonNull Context context) {
+        return requireApiKey(context);
     }
 
     private static boolean isValidApiKey(@Nullable String apiKey) {

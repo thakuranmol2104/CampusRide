@@ -32,6 +32,7 @@ public class PostRideActivity extends AppCompatActivity {
     private int activeField = FIELD_ORIGIN;
     private ActivityResultLauncher<Intent> placePickerLauncher;
     private final Calendar selectedCalendar = Calendar.getInstance();
+    private boolean isPosting;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,7 +59,12 @@ public class PostRideActivity extends AppCompatActivity {
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
                     if (result.getResultCode() == AutocompleteActivity.RESULT_ERROR) {
-                        launchFallbackAutocomplete();
+                        String errorMessage = PlacesAutoCompleteHelper.getPlacesErrorMessage(result.getData());
+                        Toast.makeText(
+                                this,
+                                TextUtils.isEmpty(errorMessage) ? "Unable to search place" : errorMessage,
+                                Toast.LENGTH_SHORT
+                        ).show();
                         return;
                     }
 
@@ -145,19 +151,15 @@ public class PostRideActivity extends AppCompatActivity {
     }
 
     private void launchPlacePicker(int fieldType) {
-        try {
-            activeField = fieldType;
-            PlacesAutoCompleteHelper.launchAutocomplete(this, placePickerLauncher);
-        } catch (IllegalStateException exception) {
-            launchFallbackAutocomplete();
-        }
-    }
-
-    private void launchFallbackAutocomplete() {
-        PlacesAutoCompleteHelper.launchFallbackAutocomplete(this, placePickerLauncher);
+        activeField = fieldType;
+        PlacesAutoCompleteHelper.launchAutocomplete(this, placePickerLauncher);
     }
 
     private void postRide() {
+        if (isPosting) {
+            return;
+        }
+
         String origin = etOrigin.getText().toString().trim();
         String destination = etDestination.getText().toString().trim();
         String date = etDate.getText().toString().trim();
@@ -212,6 +214,12 @@ public class PostRideActivity extends AppCompatActivity {
             return;
         }
 
+        if (availableSeats <= 0) {
+            etSeats.setError("Seats must be at least 1");
+            etSeats.requestFocus();
+            return;
+        }
+
         try {
             pricePerSeat = Double.parseDouble(priceStr);
         } catch (Exception e) {
@@ -220,16 +228,53 @@ public class PostRideActivity extends AppCompatActivity {
             return;
         }
 
+        if (pricePerSeat < 0) {
+            etPrice.setError("Price cannot be negative");
+            etPrice.requestFocus();
+            return;
+        }
+
         FirebaseUser currentUser = FirebaseHelper.getInstance().getCurrentUser();
 
         if (currentUser == null) {
-            Toast.makeText(this, "User not logged in", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Please login again to post a ride.", Toast.LENGTH_SHORT).show();
+            new SessionManager(this).clearSession();
+            startActivity(new Intent(this, MainActivity.class));
+            finish();
             return;
         }
 
         String driverUid = currentUser.getUid();
-        String driverName = currentUser.getEmail();
+        setPostingState(true);
 
+        FirebaseHelper.getInstance().getDb()
+                .collection("users")
+                .document(driverUid)
+                .get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    String driverName = "Rider";
+                    if (documentSnapshot.exists()) {
+                        User user = documentSnapshot.toObject(User.class);
+                        if (user != null && user.getName() != null && !user.getName().trim().isEmpty()) {
+                            driverName = user.getName().trim();
+                        }
+                    }
+
+                    publishRide(driverUid, driverName, origin, destination, date, time, availableSeats, pricePerSeat);
+                })
+                .addOnFailureListener(exception ->
+                        publishRide(driverUid, fallbackDriverName(currentUser), origin, destination, date, time,
+                                availableSeats, pricePerSeat));
+    }
+
+    private void publishRide(String driverUid,
+                             String driverName,
+                             String origin,
+                             String destination,
+                             String date,
+                             String time,
+                             int availableSeats,
+                             double pricePerSeat) {
         Ride ride = new Ride(
                 "",
                 driverUid,
@@ -243,15 +288,43 @@ public class PostRideActivity extends AppCompatActivity {
         );
 
         RideHelper.getInstance().postRide(ride, task -> {
+            setPostingState(false);
             if (task.isSuccessful()) {
                 Toast.makeText(PostRideActivity.this, "Ride posted successfully", Toast.LENGTH_SHORT).show();
                 finish();
             } else {
-                String error = task.getException() != null
-                        ? task.getException().getMessage()
-                        : "Failed to post ride";
-                Toast.makeText(PostRideActivity.this, error, Toast.LENGTH_LONG).show();
+                saveRideLocally(ride);
             }
         });
+    }
+
+    private void saveRideLocally(Ride ride) {
+        try {
+            LocalRideStore.saveRide(this, ride);
+            Toast.makeText(
+                    PostRideActivity.this,
+                    "Ride saved on this device. Firebase rules are blocking online posting.",
+                    Toast.LENGTH_LONG
+            ).show();
+            finish();
+        } catch (Exception exception) {
+            Toast.makeText(PostRideActivity.this, "Failed to post ride", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private String fallbackDriverName(FirebaseUser currentUser) {
+        if (currentUser.getDisplayName() != null && !currentUser.getDisplayName().trim().isEmpty()) {
+            return currentUser.getDisplayName().trim();
+        }
+        if (currentUser.getEmail() != null && !currentUser.getEmail().trim().isEmpty()) {
+            return currentUser.getEmail().trim();
+        }
+        return "Rider";
+    }
+
+    private void setPostingState(boolean posting) {
+        isPosting = posting;
+        btnPostRide.setEnabled(!posting);
+        btnPostRide.setText(posting ? "Publishing..." : "Publish Ride");
     }
 }

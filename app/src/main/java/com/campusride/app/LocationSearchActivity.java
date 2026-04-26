@@ -1,17 +1,21 @@
 package com.campusride.app;
 
 import android.Manifest;
+import android.animation.ValueAnimator;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.location.Address;
-import android.location.Geocoder;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
+import android.util.TypedValue;
+import android.view.ViewGroup;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
@@ -32,21 +36,13 @@ import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.libraries.places.api.Places;
 import com.google.android.libraries.places.api.model.AutocompletePrediction;
+import com.google.android.libraries.places.api.model.AutocompleteSessionToken;
 import com.google.android.libraries.places.api.model.Place;
+import com.google.android.libraries.places.api.model.RectangularBounds;
 import com.google.android.libraries.places.api.net.FetchPlaceRequest;
 import com.google.android.libraries.places.api.net.FindAutocompletePredictionsRequest;
 import com.google.android.libraries.places.api.net.PlacesClient;
 
-import org.maplibre.android.MapLibre;
-import org.maplibre.android.annotations.MarkerOptions;
-import org.maplibre.android.camera.CameraPosition;
-import org.maplibre.android.camera.CameraUpdateFactory;
-import org.maplibre.android.geometry.LatLngBounds;
-import org.maplibre.android.maps.MapLibreMap;
-import org.maplibre.android.maps.MapView;
-import org.maplibre.android.maps.OnMapReadyCallback;
-
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -54,10 +50,10 @@ import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class LocationSearchActivity extends AppCompatActivity implements OnMapReadyCallback {
+public class LocationSearchActivity extends AppCompatActivity {
 
     private static final long SEARCH_DELAY_MS = 220L;
-    private static final int MAX_LOCATION_RESULTS = 10;
+    private static final int MAX_LOCATION_RESULTS = 5;
     private static final LatLng INDIA_DEFAULT = new LatLng(20.5937, 78.9629);
 
     private EditText etLocationSearch;
@@ -67,25 +63,30 @@ public class LocationSearchActivity extends AppCompatActivity implements OnMapRe
     private TextView tvSearchState;
     private ProgressBar progressLocationSearch;
     private RecyclerView recyclerLocationResults;
-    private MapView mapView;
+    private FrameLayout layoutMapContainer;
+    private WebView locationSearchMapWebView;
 
     private LocationSearchAdapter adapter;
     private Handler handler;
     private Runnable pendingSearchRunnable;
-    private MapLibreMap mapLibreMap;
     private FusedLocationProviderClient fusedLocationClient;
     private ActivityResultLauncher<String[]> locationPermissionLauncher;
     private PlacesClient placesClient;
-    private Geocoder geocoder;
-    private ExecutorService executorService;
+    private AutocompleteSessionToken sessionToken;
+    private final ExecutorService searchExecutor = Executors.newSingleThreadExecutor();
 
     private String latestQuery = "";
+    private String currentCountryCode = defaultCountryCode();
     private LatLng currentLatLng;
+    private int mapExpandedHeightPx;
+    private int mapCollapsedHeightPx;
+    private boolean mapCollapsed;
+    private boolean placesAvailable;
+    private int searchGeneration;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        MapLibre.getInstance(this);
         setContentView(R.layout.activity_location_search);
 
         etLocationSearch = findViewById(R.id.etLocationSearch);
@@ -95,17 +96,24 @@ public class LocationSearchActivity extends AppCompatActivity implements OnMapRe
         tvSearchState = findViewById(R.id.tvSearchState);
         progressLocationSearch = findViewById(R.id.progressLocationSearch);
         recyclerLocationResults = findViewById(R.id.recyclerLocationResults);
-        mapView = findViewById(R.id.locationSearchMapView);
+        layoutMapContainer = findViewById(R.id.layoutMapContainer);
+        locationSearchMapWebView = findViewById(R.id.locationSearchMapWebView);
 
-        mapView.onCreate(savedInstanceState);
-        mapView.getMapAsync(this);
+        mapExpandedHeightPx = dpToPx(220);
+        mapCollapsedHeightPx = dpToPx(88);
+        configureMapWebView();
+        movePreviewToDefault();
 
-        PlacesAutoCompleteHelper.initialize(this);
-        placesClient = Places.createClient(this);
-        geocoder = new Geocoder(this, Locale.getDefault());
+        try {
+            PlacesAutoCompleteHelper.initialize(this);
+            placesClient = Places.createClient(this);
+            placesAvailable = true;
+        } catch (Exception exception) {
+            placesAvailable = false;
+        }
         handler = new Handler(Looper.getMainLooper());
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
-        executorService = Executors.newSingleThreadExecutor();
+        sessionToken = AutocompleteSessionToken.newInstance();
 
         adapter = new LocationSearchAdapter(this::onLocationResultTapped);
         recyclerLocationResults.setLayoutManager(new LinearLayoutManager(this));
@@ -146,11 +154,11 @@ public class LocationSearchActivity extends AppCompatActivity implements OnMapRe
         preloadCurrentLocation();
     }
 
-    @Override
-    public void onMapReady(@NonNull MapLibreMap map) {
-        mapLibreMap = map;
-        NavigationMapHelper.applyNavigationUi(mapLibreMap);
-        movePreviewToDefault();
+    private void configureMapWebView() {
+        WebSettings settings = locationSearchMapWebView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        locationSearchMapWebView.setBackgroundColor(0xFF101614);
     }
 
     private void scheduleSearch(@NonNull String query) {
@@ -164,10 +172,14 @@ public class LocationSearchActivity extends AppCompatActivity implements OnMapRe
             progressLocationSearch.setVisibility(ProgressBar.GONE);
             adapter.submitList(new ArrayList<>());
             tvSearchState.setText("Start typing for quick matches");
+            sessionToken = AutocompleteSessionToken.newInstance();
+            searchGeneration++;
+            setMapCollapsed(false);
             movePreviewToDefault();
             return;
         }
 
+        setMapCollapsed(true);
         progressLocationSearch.setVisibility(ProgressBar.VISIBLE);
         tvSearchState.setText("Searching places...");
         pendingSearchRunnable = () -> searchLocations(query);
@@ -175,11 +187,23 @@ public class LocationSearchActivity extends AppCompatActivity implements OnMapRe
     }
 
     private void searchLocations(@NonNull String query) {
-        FindAutocompletePredictionsRequest request = FindAutocompletePredictionsRequest.builder()
-                .setQuery(query)
-                .build();
+        int generation = ++searchGeneration;
+        if (!placesAvailable || placesClient == null) {
+            searchLocationsWithOpenStreetMap(query, generation);
+            return;
+        }
 
-        placesClient.findAutocompletePredictions(request)
+        FindAutocompletePredictionsRequest.Builder requestBuilder =
+                FindAutocompletePredictionsRequest.builder()
+                        .setQuery(query)
+                        .setSessionToken(sessionToken);
+
+        if (currentLatLng != null) {
+            requestBuilder.setOrigin(currentLatLng);
+            requestBuilder.setLocationBias(createLocationBias(currentLatLng));
+        }
+
+        placesClient.findAutocompletePredictions(requestBuilder.build())
                 .addOnSuccessListener(response -> {
                     if (!query.equals(latestQuery)) {
                         return;
@@ -211,31 +235,78 @@ public class LocationSearchActivity extends AppCompatActivity implements OnMapRe
                             : results.size() + " quick matches");
                 })
                 .addOnFailureListener(exception -> {
-                    progressLocationSearch.setVisibility(ProgressBar.GONE);
-                    tvSearchState.setText("Unable to load suggestions");
-                    Toast.makeText(this, "Unable to search locations right now.", Toast.LENGTH_SHORT).show();
+                    if (!query.equals(latestQuery) || generation != searchGeneration) {
+                        return;
+                    }
+                    searchLocationsWithOpenStreetMap(query, generation);
                 });
     }
 
-    private void onLocationResultTapped(@NonNull LocationSearchAdapter.LocationResult result) {
-        if (!TextUtils.isEmpty(result.getPlaceId())) {
-            fetchPlaceDetails(result);
+    private void searchLocationsWithOpenStreetMap(@NonNull String query, int generation) {
+        searchExecutor.execute(() -> {
+            try {
+                List<LocationSearchAdapter.LocationResult> results =
+                        OpenStreetMapHelper.searchLocations(
+                                query,
+                                MAX_LOCATION_RESULTS,
+                                currentCountryCode,
+                                null,
+                                currentLatLng
+                        );
+                runOnUiThread(() -> showOpenStreetMapResults(query, generation, results));
+            } catch (Exception exception) {
+                runOnUiThread(() -> showSearchFailure(query, generation));
+            }
+        });
+    }
+
+    private void showOpenStreetMapResults(@NonNull String query,
+                                          int generation,
+                                          @NonNull List<LocationSearchAdapter.LocationResult> results) {
+        if (!query.equals(latestQuery) || generation != searchGeneration) {
             return;
         }
 
-        if (result.getLatLng() != null) {
-            updateMapPreview(result.getLatLng(), result.getTitle(), result.getSubtitle());
-            finishWithSelection(result);
+        progressLocationSearch.setVisibility(ProgressBar.GONE);
+        adapter.submitList(results);
+        tvSearchState.setText(results.isEmpty()
+                ? "No matches found"
+                : results.size() + " quick matches");
+    }
+
+    private void showSearchFailure(@NonNull String query, int generation) {
+        if (!query.equals(latestQuery) || generation != searchGeneration) {
+            return;
         }
+
+        progressLocationSearch.setVisibility(ProgressBar.GONE);
+        adapter.submitList(new ArrayList<>());
+        tvSearchState.setText("Unable to load suggestions");
+        Toast.makeText(this, "Unable to search locations right now.", Toast.LENGTH_SHORT).show();
+    }
+
+    private void onLocationResultTapped(@NonNull LocationSearchAdapter.LocationResult result) {
+        if (result.getLatLng() != null) {
+            setMapCollapsed(false);
+            updateMapPreview(result.getLatLng(), result.getTitle(), result.getSubtitle());
+            returnSelectionWithPreview(result);
+            return;
+        }
+
+        if (TextUtils.isEmpty(result.getPlaceId())) {
+            return;
+        }
+
+        fetchPlaceDetails(result);
     }
 
     private void fetchPlaceDetails(@NonNull LocationSearchAdapter.LocationResult result) {
         progressLocationSearch.setVisibility(ProgressBar.VISIBLE);
 
-        FetchPlaceRequest request = FetchPlaceRequest.newInstance(
+        FetchPlaceRequest request = FetchPlaceRequest.builder(
                 result.getPlaceId(),
                 Arrays.asList(Place.Field.ID, Place.Field.NAME, Place.Field.ADDRESS, Place.Field.LAT_LNG)
-        );
+        ).setSessionToken(sessionToken).build();
 
         placesClient.fetchPlace(request)
                 .addOnSuccessListener(response -> {
@@ -255,8 +326,10 @@ public class LocationSearchActivity extends AppCompatActivity implements OnMapRe
                                     place.getId(),
                                     result.getDistanceMeters()
                             );
+
+                    setMapCollapsed(false);
                     updateMapPreview(finalResult.getLatLng(), finalResult.getTitle(), finalResult.getSubtitle());
-                    finishWithSelection(finalResult);
+                    returnSelectionWithPreview(finalResult);
                 })
                 .addOnFailureListener(exception -> {
                     progressLocationSearch.setVisibility(ProgressBar.GONE);
@@ -306,7 +379,21 @@ public class LocationSearchActivity extends AppCompatActivity implements OnMapRe
                     }
 
                     currentLatLng = new LatLng(location.getLatitude(), location.getLongitude());
-                    resolveCurrentLocation(finishOnSuccess);
+                    LocationSearchAdapter.LocationResult currentLocationResult =
+                            new LocationSearchAdapter.LocationResult(
+                                    "Current location",
+                                    formatCoordinates(currentLatLng),
+                                    currentLatLng
+                            );
+                    tvCurrentLocationSubtitle.setText(currentLocationResult.getSubtitle());
+                    updateMapPreview(
+                            currentLocationResult.getLatLng(),
+                            currentLocationResult.getTitle(),
+                            currentLocationResult.getSubtitle()
+                    );
+                    if (finishOnSuccess) {
+                        returnSelectionWithPreview(currentLocationResult);
+                    }
                 })
                 .addOnFailureListener(exception -> {
                     tvCurrentLocationSubtitle.setText("Current location unavailable right now");
@@ -314,57 +401,6 @@ public class LocationSearchActivity extends AppCompatActivity implements OnMapRe
                         Toast.makeText(this, "Unable to fetch current location.", Toast.LENGTH_SHORT).show();
                     }
                 });
-    }
-
-    private void resolveCurrentLocation(boolean finishOnSuccess) {
-        executorService.execute(() -> {
-            LocationSearchAdapter.LocationResult currentLocationResult = buildCurrentLocationResult();
-            runOnUiThread(() -> {
-                if (currentLocationResult == null) {
-                    tvCurrentLocationSubtitle.setText("Current location unavailable right now");
-                    return;
-                }
-
-                tvCurrentLocationSubtitle.setText(currentLocationResult.getSubtitle());
-                updateMapPreview(
-                        currentLocationResult.getLatLng(),
-                        currentLocationResult.getTitle(),
-                        currentLocationResult.getSubtitle()
-                );
-
-                if (finishOnSuccess) {
-                    finishWithSelection(currentLocationResult);
-                }
-            });
-        });
-    }
-
-    @Nullable
-    @SuppressWarnings("deprecation")
-    private LocationSearchAdapter.LocationResult buildCurrentLocationResult() {
-        if (currentLatLng == null) {
-            return null;
-        }
-
-        String title = "Current location";
-        String subtitle = "Live device position";
-
-        try {
-            List<Address> addresses = geocoder.getFromLocation(
-                    currentLatLng.latitude,
-                    currentLatLng.longitude,
-                    1
-            );
-
-            if (addresses != null && !addresses.isEmpty()) {
-                Address address = addresses.get(0);
-                title = firstNonEmpty(address.getFeatureName(), address.getAddressLine(0), title);
-                subtitle = firstNonEmpty(address.getAddressLine(0), subtitle);
-            }
-        } catch (IOException ignored) {
-        }
-
-        return new LocationSearchAdapter.LocationResult(title, subtitle, currentLatLng);
     }
 
     private void finishWithSelection(@NonNull LocationSearchAdapter.LocationResult result) {
@@ -380,93 +416,87 @@ public class LocationSearchActivity extends AppCompatActivity implements OnMapRe
         finish();
     }
 
-    private void updateMapPreview(@NonNull LatLng latLng, @NonNull String title, @NonNull String subtitle) {
-        if (mapLibreMap == null) {
-            return;
-        }
+    private void returnSelectionWithPreview(@NonNull LocationSearchAdapter.LocationResult result) {
+        handler.postDelayed(() -> finishWithSelection(result), 180L);
+    }
 
-        mapLibreMap.clear();
-        mapLibreMap.addMarker(new MarkerOptions()
-                .position(toMapLibreLatLng(latLng))
-                .title(title)
-                .snippet(subtitle));
-        mapLibreMap.animateCamera(CameraUpdateFactory.newCameraPosition(
-                NavigationMapHelper.navigationCamera()
-                        .target(toMapLibreLatLng(latLng))
-                        .bearing(0.0)
-                        .build()
-        ));
+    private void updateMapPreview(@NonNull LatLng latLng, @NonNull String title, @NonNull String subtitle) {
+        locationSearchMapWebView.loadDataWithBaseURL(
+                "https://localhost/",
+                WebMapHtmlBuilder.buildSingleLocationMap(latLng, title, subtitle),
+                "text/html",
+                "UTF-8",
+                null
+        );
     }
 
     private void movePreviewToDefault() {
-        if (mapLibreMap == null) {
-            return;
-        }
-
-        if (currentLatLng != null) {
-            updateMapPreview(currentLatLng, "Current area", "Move on the map to preview nearby places");
-            return;
-        }
-
-        mapLibreMap.animateCamera(CameraUpdateFactory.newCameraPosition(
-                new CameraPosition.Builder()
-                        .target(toMapLibreLatLng(INDIA_DEFAULT))
-                        .zoom(4.5)
-                        .tilt(25.0)
-                        .bearing(0.0)
-                        .build()
-        ));
+        locationSearchMapWebView.loadDataWithBaseURL(
+                "https://localhost/",
+                WebMapHtmlBuilder.buildSingleLocationMap(
+                        currentLatLng,
+                        "CampusRide",
+                        currentLatLng != null ? "Current area" : "Search for a pickup or drop"
+                ),
+                "text/html",
+                "UTF-8",
+                null
+        );
     }
 
     @NonNull
-    private org.maplibre.android.geometry.LatLng toMapLibreLatLng(@NonNull LatLng latLng) {
-        return new org.maplibre.android.geometry.LatLng(latLng.latitude, latLng.longitude);
+    private RectangularBounds createLocationBias(@NonNull LatLng latLng) {
+        double latOffset = 0.18d;
+        double lngOffset = 0.18d;
+        LatLng southwest = new LatLng(latLng.latitude - latOffset, latLng.longitude - lngOffset);
+        LatLng northeast = new LatLng(latLng.latitude + latOffset, latLng.longitude + lngOffset);
+        return RectangularBounds.newInstance(southwest, northeast);
+    }
+
+    private void setMapCollapsed(boolean collapsed) {
+        if (mapCollapsed == collapsed) {
+            return;
+        }
+
+        mapCollapsed = collapsed;
+        int startHeight = layoutMapContainer.getLayoutParams().height;
+        int endHeight = collapsed ? mapCollapsedHeightPx : mapExpandedHeightPx;
+
+        ValueAnimator animator = ValueAnimator.ofInt(startHeight, endHeight);
+        animator.setDuration(180L);
+        animator.addUpdateListener(valueAnimator -> {
+            ViewGroup.LayoutParams params = layoutMapContainer.getLayoutParams();
+            params.height = (int) valueAnimator.getAnimatedValue();
+            layoutMapContainer.setLayoutParams(params);
+        });
+        animator.start();
+    }
+
+    private int dpToPx(int dp) {
+        return (int) TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                dp,
+                getResources().getDisplayMetrics()
+        );
     }
 
     @NonNull
-    private String firstNonEmpty(String... values) {
-        for (String value : values) {
-            if (!TextUtils.isEmpty(value)) {
-                return value;
-            }
+    private static String defaultCountryCode() {
+        String localeCountry = Locale.getDefault().getCountry();
+        if (localeCountry == null || localeCountry.trim().isEmpty()) {
+            return "in";
         }
-        return "";
+        return localeCountry.toLowerCase(Locale.US);
     }
 
-    @Override
-    protected void onStart() {
-        super.onStart();
-        mapView.onStart();
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        mapView.onResume();
-    }
-
-    @Override
-    protected void onPause() {
-        mapView.onPause();
-        super.onPause();
-    }
-
-    @Override
-    protected void onStop() {
-        mapView.onStop();
-        super.onStop();
-    }
-
-    @Override
-    protected void onSaveInstanceState(@NonNull Bundle outState) {
-        super.onSaveInstanceState(outState);
-        mapView.onSaveInstanceState(outState);
-    }
-
-    @Override
-    public void onLowMemory() {
-        super.onLowMemory();
-        mapView.onLowMemory();
+    @NonNull
+    private String formatCoordinates(@NonNull LatLng latLng) {
+        return String.format(
+                Locale.getDefault(),
+                "%.5f, %.5f",
+                latLng.latitude,
+                latLng.longitude
+        );
     }
 
     @Override
@@ -474,10 +504,7 @@ public class LocationSearchActivity extends AppCompatActivity implements OnMapRe
         if (pendingSearchRunnable != null) {
             handler.removeCallbacks(pendingSearchRunnable);
         }
-        if (executorService != null) {
-            executorService.shutdownNow();
-        }
-        mapView.onDestroy();
+        searchExecutor.shutdownNow();
         super.onDestroy();
     }
 }

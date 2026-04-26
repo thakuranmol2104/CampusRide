@@ -54,6 +54,13 @@ public final class OpenStreetMapHelper {
         return ranked;
     }
 
+    @NonNull
+    public static List<LocationSearchAdapter.LocationResult> searchLocationsBasic(@NonNull String query,
+                                                                                  int limit,
+                                                                                  @Nullable String countryCode) throws Exception {
+        return executeSearch(query, limit, countryCode);
+    }
+
     @Nullable
     public static LocationSearchAdapter.LocationResult geocodeSingle(@NonNull String query) throws Exception {
         List<LocationSearchAdapter.LocationResult> results = executeSearch(query, 1, null);

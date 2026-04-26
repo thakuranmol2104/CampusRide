@@ -72,8 +72,11 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:background="@drawable/bg_button_secondary"
+            android:backgroundTint="@null"
+            android:minHeight="48dp"
             android:text="View Route"
-            android:textColor="@color/primary" />
+            android:textAllCaps="false"
+            android:textColor="@android:color/white" />
 
         <Button
             android:id="@+id/btnRideAction"
@@ -82,6 +85,9 @@
             android:layout_marginStart="10dp"
             android:layout_weight="1"
             android:background="@drawable/bg_button_primary"
+            android:backgroundTint="@null"
+            android:minHeight="48dp"
+            android:textAllCaps="false"
             android:textColor="@android:color/white"
             android:visibility="gone" />
 

@@ -8,13 +8,14 @@ import org.maplibre.android.maps.Style;
 
 public final class NavigationMapHelper {
 
-    public static final String NAVIGATION_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
+    public static final String NAVIGATION_STYLE_URL = "asset://navigation_map_style.json";
 
     private NavigationMapHelper() {
     }
 
-    public static void applyNavigationUi(@NonNull MapLibreMap mapLibreMap) {
-        mapLibreMap.setStyle(new Style.Builder().fromUri(NAVIGATION_STYLE_URL));
+    public static void applyNavigationUi(@NonNull MapLibreMap mapLibreMap,
+                                         @NonNull Style.OnStyleLoaded onStyleLoaded) {
+        mapLibreMap.setStyle(new Style.Builder().fromUri(NAVIGATION_STYLE_URL), onStyleLoaded);
         mapLibreMap.getUiSettings().setCompassEnabled(false);
         mapLibreMap.getUiSettings().setLogoEnabled(false);
         mapLibreMap.getUiSettings().setAttributionEnabled(true);

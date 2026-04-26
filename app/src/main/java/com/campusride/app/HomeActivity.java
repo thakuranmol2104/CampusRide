@@ -73,7 +73,7 @@ public class HomeActivity extends AppCompatActivity {
                 .document(currentUser.getUid())
                 .get()
                 .addOnSuccessListener(documentSnapshot -> {
-                    String fallback = currentUser.getEmail() != null ? currentUser.getEmail() : "Rider";
+                    String fallback = "Rider";
                     if (documentSnapshot.exists()) {
                         User user = documentSnapshot.toObject(User.class);
                         if (user != null && user.getName() != null && !user.getName().trim().isEmpty()) {
@@ -84,8 +84,7 @@ public class HomeActivity extends AppCompatActivity {
                     tvWelcome.setText("Welcome back, " + fallback);
                 })
                 .addOnFailureListener(exception -> {
-                    String fallback = currentUser.getEmail() != null ? currentUser.getEmail() : "Rider";
-                    tvWelcome.setText("Welcome back, " + fallback);
+                    tvWelcome.setText("Welcome back, Rider");
                 });
     }
 }
